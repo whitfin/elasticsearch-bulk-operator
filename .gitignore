@@ -1,0 +1,9 @@
+# os x stuff
+.DS_Store
+
+# idea products
+.idea
+*.iml
+
+# Maven
+target/
