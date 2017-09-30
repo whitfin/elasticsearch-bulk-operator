@@ -36,7 +36,7 @@ public class BulkExample {
         
         // create an operator to flush each minute
         BulkOperator operator = BulkOperator
-               .Builder(restClient)
+               .builder(restClient)
                    .concurrency(3)
                    .interval(60_000)
                    .lifecycle(new RequeueLifecycle())
