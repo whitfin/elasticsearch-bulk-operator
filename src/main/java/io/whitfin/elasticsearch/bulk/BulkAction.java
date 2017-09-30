@@ -18,7 +18,7 @@ import javax.annotation.Nullable;
  * is because only the index and type make sense otherwise, but they can be specified
  * in the API call itself via the Elasticsearch path and so they must be nullable.
  *
- * @see <a href="Elasticsearch Bulk API">https://www.elastic.co/guide/en/elasticsearch/reference/5.4/docs-bulk.html</a>
+ * @see <a href="http://ow.ly/VQIo30fxqly">Elasticsearch Bulk API</a>
  */
 @Value.Immutable
 @Value.Style(depluralize = true)

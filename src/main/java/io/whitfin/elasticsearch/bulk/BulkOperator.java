@@ -31,7 +31,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * To create an operator, you must go via the {@link BulkOperator.Builder} in
  * order to get sane defaults and validation.
  *
- * @see <a href="Elasticsearch Bulk API">https://www.elastic.co/guide/en/elasticsearch/reference/5.4/docs-bulk.html</a>
+ * @see <a href="http://ow.ly/VQIo30fxqly">Elasticsearch Bulk API</a>
  */
 public class BulkOperator implements Closeable {
 
@@ -316,7 +316,10 @@ public class BulkOperator implements Closeable {
     /**
      * Returns a builder in order to create an operator.
      *
-     * @return a new {@link Builder} instance.
+     * @param client
+     *      the {@link RestClient} to use to talk to Elasticsearch.
+     * @return
+     *      a new {@link Builder} instance from the provided client.
      */
     public static Builder builder(RestClient client) {
         return new Builder(client);
