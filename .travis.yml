@@ -3,6 +3,6 @@ jdk:
   - oraclejdk9
   - oraclejdk8
 script:
-  - mvn clean test jacoco:report
+  - mvn clean install
 services:
   - elasticsearch

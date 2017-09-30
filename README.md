@@ -1,4 +1,4 @@
-# Elasticsearch REST Bulk Client
+# Elasticsearch Bulk Operator (REST)
 
 This repo contains an implementation of something similar to the `BulkProcessor` included in Elasticsearch 2.x. The intent
 is to make it easier to carry out bulk actions against Elasticsearch using just the REST client which doesn't yet include
