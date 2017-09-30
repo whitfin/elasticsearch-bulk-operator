@@ -1,8 +1,12 @@
 # Elasticsearch REST Bulk Client
 
-This repo contains an implementation of something similar to the `BulkProcessor` included in Elasticsearch 2.x.
+This repo contains an implementation of something similar to the `BulkProcessor` included in Elasticsearch 2.x. The intent
+is to make it easier to carry out bulk actions against Elasticsearch using just the REST client which doesn't yet include
+an easy way to carry out `_bulk` requests.
 
-The intent is to make it easier to carry out bulk actions against Elasticsearch using just the REST client. 
+This implementation has been in use in production at scale (roughly 2000 documents per second) for approximately 6 months
+without issue at the time of writing (September 2017). If you do find any issues, please file an issue (or a PR!) and I'll
+try to fix it up as soon as possible.
 
 ### Installation
 
