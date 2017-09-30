@@ -46,13 +46,14 @@ public class RequeueLifecycle extends NoopLifecycle {
      */
     @Override
     public void afterBulk(long executionId, BulkOperator operator, BulkOperation operation, Response response) {
+        // parsed response
         JsonNode bulkResponse;
 
         try {
             // parse the bulk response back as a JsonNode instance
             bulkResponse = MAPPER.readTree(response.getEntity().getContent());
         } catch (IOException e) {
-            throw new IllegalStateException(e);
+            throw new IllegalStateException(e); // never happens
         }
 
         // if there are no errors, we're good to exit

@@ -18,7 +18,7 @@ public class NoopLifecycle implements BulkLifecycle {
      */
     @Override
     public void beforeBulk(long executionId, BulkOperator operator, BulkOperation bulkOperation) {
-
+        // executed before the bulk request is sent
     }
 
     /**
@@ -26,7 +26,7 @@ public class NoopLifecycle implements BulkLifecycle {
      */
     @Override
     public void afterBulk(long executionId, BulkOperator operator, BulkOperation bulkOperation, Response response) {
-
+        // executed after a successful bulk request
     }
 
     /**
@@ -34,6 +34,6 @@ public class NoopLifecycle implements BulkLifecycle {
      */
     @Override
     public void afterBulk(long executionId, BulkOperator operator, BulkOperation bulkOperation, Throwable failure) {
-
+        // executed after a failed bulk request
     }
 }

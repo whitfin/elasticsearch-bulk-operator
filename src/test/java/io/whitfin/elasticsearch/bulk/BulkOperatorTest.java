@@ -17,8 +17,10 @@ import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.function.Supplier;
-import java.util.function.UnaryOperator;
+import java.util.concurrent.Callable;
+
+import static org.awaitility.Duration.FIVE_SECONDS;
+import static org.awaitility.Duration.TEN_SECONDS;
 
 public class BulkOperatorTest {
 
@@ -57,52 +59,58 @@ public class BulkOperatorTest {
      * Tests writing documents on an interval.
      */
     @Test
-    public void testIndexingABunchOfDocumentsOnInterval() throws Exception {
+    public void testIndexNamesingABunchOfDocumentsOnInterval() throws Exception {
         // generate temporary resources for current test structures
-        String testIndex = generateTempIndex(() -> generateRandomHexToken(6));
-        BulkOperator operator = generateTempOperator(builder -> {
-            // apply concurrency, interval and max actions
-            return builder.concurrency(1).interval(3_000).lifecycle(new RequeueLifecycle());
+        String testIndexNamesNames = generateTempIndex();
+        BulkOperator operator = generateTempOperator(new UnaryOperator<BulkOperator.Builder>() {
+            @Override
+            public BulkOperator.Builder apply(BulkOperator.Builder builder) {
+                return builder.concurrency(1).interval(3_000).lifecycle(new RequeueLifecycle());
+            }
         });
 
         // write documents and then validate existence
-        writeDocumentsIntoElasticsearch(operator, testIndex, 5_000);
-        validateDocumentsExist(testIndex, 5_000, Duration.TEN_SECONDS);
+        writeDocumentsIntoElasticsearch(operator, testIndexNamesNames, 5_000);
+        validateDocumentsExist(TEN_SECONDS, testIndexNamesNames, 5_000);
     }
 
     /**
      * Tests writing documents on a limit.
      */
     @Test
-    public void testIndexingABunchOfDocumentsOnLimit() throws Exception {
+    public void testIndexNamesingABunchOfDocumentsOnLimit() throws Exception {
         // generate temporary resources for current test structures
-        String testIndex = generateTempIndex(() -> generateRandomHexToken(6));
-        BulkOperator operator = generateTempOperator(builder -> {
-            // apply concurrency, lifecycle and max actions
-            return builder.concurrency(1).lifecycle(new RequeueLifecycle()).maxActions(1_000);
+        String testIndexNames = generateTempIndex();
+        BulkOperator operator = generateTempOperator(new UnaryOperator<BulkOperator.Builder>() {
+            @Override
+            public BulkOperator.Builder apply(BulkOperator.Builder builder) {
+                return builder.concurrency(1).lifecycle(new RequeueLifecycle()).maxActions(1_000);
+            }
         });
 
         // write documents and then validate existence
-        writeDocumentsIntoElasticsearch(operator, testIndex, 1_000);
-        validateDocumentsExist(testIndex, 1_000, Duration.FIVE_SECONDS);
+        writeDocumentsIntoElasticsearch(operator, testIndexNames, 1_000);
+        validateDocumentsExist(FIVE_SECONDS, testIndexNames, 1_000);
     }
 
     /**
      * Tests writing documents on a manual flush.
      */
     @Test
-    public void testIndexingABunchOfDocumentsOnFlush() throws Exception {
+    public void testIndexNamesingABunchOfDocumentsOnFlush() throws Exception {
         // generate temporary resources for current test structures
-        String testIndex = generateTempIndex(() -> generateRandomHexToken(6));
-        BulkOperator operator = generateTempOperator(builder -> {
-            // apply concurrency and lifecycle
-            return builder.concurrency(1).lifecycle(new RequeueLifecycle());
+        String testIndexNames = generateTempIndex();
+        BulkOperator operator = generateTempOperator(new UnaryOperator<BulkOperator.Builder>() {
+            @Override
+            public BulkOperator.Builder apply(BulkOperator.Builder builder) {
+                return builder.concurrency(1).lifecycle(new RequeueLifecycle());
+            }
         });
 
         // write documents and then validate existence
-        writeDocumentsIntoElasticsearch(operator, testIndex, 500);
+        writeDocumentsIntoElasticsearch(operator, testIndexNames, 500);
         operator.flush();
-        validateDocumentsExist(testIndex, 500, Duration.FIVE_SECONDS);
+        validateDocumentsExist(FIVE_SECONDS, testIndexNames, 500);
     }
 
     /**
@@ -166,13 +174,11 @@ public class BulkOperatorTest {
      * This just schedules the index for cleanup after
      * the class has finished executing.
      *
-     * @param stringSupplier
-     *      the index name generator.
      * @return
      *      a String index name.
      */
-    private String generateTempIndex(Supplier<String> stringSupplier) throws Exception {
-        String index = stringSupplier.get();
+    private String generateTempIndex() throws Exception {
+        String index = generateRandomHexToken(6);
         this.indices.add(index);
         return index;
     }
@@ -202,26 +208,29 @@ public class BulkOperatorTest {
      * @param duration
      *      the maximum time to wait before failing.
      */
-    private void validateDocumentsExist(String index, long count, Duration duration) {
-        Awaitility.await().atMost(duration).until(() -> {
-            // response container
-            Response response;
+    private void validateDocumentsExist(Duration duration, final String index, final long count) {
+        Awaitility.await().atMost(duration).until(new Callable<Boolean>() {
+            @Override
+            public Boolean call() throws Exception {
+                // response container
+                Response response;
 
-            try {
-                // try execute the request, fail on any errors in the query
-                response = restClient.performRequest("GET", "/" + index + "/_count");
-            } catch(Exception e) {
-                return false;
+                try {
+                    // try execute the request, fail on any errors in the query
+                    response = restClient.performRequest("GET", "/" + index + "/_count");
+                } catch(Exception e) {
+                    return false;
+                }
+
+                // if the request failed for some reason, return false
+                if (response.getStatusLine().getStatusCode() != 200) {
+                    return false;
+                }
+
+                // validate the body has a count matching the expected, or false
+                JsonNode body = mapper.readTree(response.getEntity().getContent());
+                return body.path("count").asLong(-1) == count;
             }
-
-            // if the request failed for some reason, return false
-            if (response.getStatusLine().getStatusCode() != 200) {
-                return false;
-            }
-
-            // validate the body has a count matching the expected, or false
-            JsonNode body = mapper.readTree(response.getEntity().getContent());
-            return body.path("count").asLong(-1) == count;
         });
     }
 
@@ -248,5 +257,26 @@ public class BulkOperatorTest {
 
             operator.add(action);
         }
+    }
+
+    /**
+     * Represents an operation on a single operand that produces a result of the
+     * same type as its operand.
+     *
+     * This is lifted from JDK8 to provide shim support for JDK7.
+     *
+     * @param <T> the type of the operand and result of the operator
+     */
+    private interface UnaryOperator<T> {
+
+        /**
+         * Applies this function to the given argument.
+         *
+         * @param t
+         *      the function argument.
+         * @return
+         *      the function result.
+         */
+        T apply(T t);
     }
 }

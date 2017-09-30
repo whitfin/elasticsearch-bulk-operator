@@ -124,10 +124,15 @@ public class BulkOperator implements Closeable {
 
             // schedule our flush to happen on the provided interval
             this.scheduledFuture = this.scheduler.scheduleWithFixedDelay(
-                    this::flush,
-                    builder.interval,
-                    builder.interval,
-                    TimeUnit.MILLISECONDS
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        flush();
+                    }
+                },
+                builder.interval,
+                builder.interval,
+                TimeUnit.MILLISECONDS
             );
         } else {
             this.scheduler = null;
@@ -269,7 +274,12 @@ public class BulkOperator implements Closeable {
          */
         @Override
         public void onSuccess(final Response response) {
-            execAndRelease(() -> lifecycle.afterBulk(id, BulkOperator.this, operation, response));
+            execAndRelease(new Runnable() {
+                @Override
+                public void run() {
+                    lifecycle.afterBulk(id, BulkOperator.this, operation, response);
+                }
+            });
         }
 
         /**
@@ -280,7 +290,12 @@ public class BulkOperator implements Closeable {
          */
         @Override
         public void onFailure(final Exception exception) {
-            execAndRelease(() -> lifecycle.afterBulk(id, BulkOperator.this, operation, exception));
+            execAndRelease(new Runnable() {
+                @Override
+                public void run() {
+                    lifecycle.afterBulk(id, BulkOperator.this, operation, exception);
+                }
+            });
         }
 
         /**
@@ -348,7 +363,7 @@ public class BulkOperator implements Closeable {
          *
          * @param client the {@link RestClient} to execute with.
          */
-        public Builder(@Nonnull RestClient client) {
+        Builder(@Nonnull RestClient client) {
             this.client = Objects.requireNonNull(client);
         }
 

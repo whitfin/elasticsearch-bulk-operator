@@ -31,7 +31,7 @@ public abstract class BulkAction {
      *
      * @return a String operation name.
      */
-    abstract public String operation();
+    public abstract String operation();
 
     /**
      * The index targeted by this action.
@@ -39,7 +39,7 @@ public abstract class BulkAction {
      * @return a String index name.
      */
     @Nullable
-    abstract public String index();
+    public abstract String index();
 
     /**
      * The index type targeted by this action.
@@ -47,7 +47,7 @@ public abstract class BulkAction {
      * @return a String type name.
      */
     @Nullable
-    abstract public String type();
+    public abstract String type();
 
     /**
      * The document identifier targeted by this action.
@@ -55,7 +55,7 @@ public abstract class BulkAction {
      * @return a String document identifier.
      */
     @Nullable
-    abstract public String id();
+    public abstract String id();
 
     /**
      * The parent identifier associated with this action.
@@ -63,7 +63,7 @@ public abstract class BulkAction {
      * @return a String parent identifier.
      */
     @Nullable
-    abstract public String parent();
+    public abstract String parent();
 
     /**
      * The routing identifier associated with this action.
@@ -71,7 +71,7 @@ public abstract class BulkAction {
      * @return a String routing identifier.
      */
     @Nullable
-    abstract public String routing();
+    public abstract String routing();
 
     /**
      * The source body associated with this action.
@@ -79,7 +79,7 @@ public abstract class BulkAction {
      * @return a String source body.
      */
     @Nullable
-    abstract public String source();
+    public abstract String source();
 
     /**
      * The document version associated with this action.
@@ -87,7 +87,7 @@ public abstract class BulkAction {
      * @return an Integer document version
      */
     @Nullable
-    abstract public Integer version();
+    public abstract Integer version();
 
     /**
      * Whether this action should cause a refresh or not.
@@ -95,7 +95,7 @@ public abstract class BulkAction {
      * @return true if a refresh should be triggered.
      */
     @Nullable
-    abstract public Boolean refresh();
+    public abstract Boolean refresh();
 
     /**
      * Whether this action should wait for shards or not.
@@ -103,7 +103,7 @@ public abstract class BulkAction {
      * @return true if the action should wait for shards.
      */
     @Nullable
-    abstract public Boolean waitForActiveShards();
+    public abstract Boolean waitForActiveShards();
 
     /**
      * Returns a builder in order to create an action.

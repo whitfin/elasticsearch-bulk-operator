@@ -30,6 +30,7 @@ operator will queue many `BulkAction` instances into a single bulk request to El
 import io.whitfin.elasticsearch.bulk.BulkAction;
 import io.whitfin.elasticsearch.bulk.BulkOperation;
 import io.whitfin.elasticsearch.bulk.BulkOperator;
+import io.whitfin.elasticsearch.bulk.lifecycle.RequeueLifecycle;
 import org.elasticsearch.client.RestClient;
     
 public class BulkExample {

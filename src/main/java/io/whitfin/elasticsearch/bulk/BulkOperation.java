@@ -31,7 +31,27 @@ public abstract class BulkOperation {
      *
      * @return a {@link List} of actions to execute.
      */
-    abstract public List<BulkAction> actions();
+    public abstract List<BulkAction> actions();
+
+    /**
+     * The estimated size of this operation.
+     *
+     * @return the length of the internal payload.
+     */
+    @Value.Derived
+    public long estimatedSizeInBytes() {
+        return payload().length();
+    }
+
+    /**
+     * The number of actions in this operation.
+     *
+     * @return the size of the internal action list.
+     */
+    @Value.Derived
+    public long numberOfActions() {
+        return actions().size();
+    }
 
     /**
      * The textual representation of this operation.
@@ -85,26 +105,6 @@ public abstract class BulkOperation {
         }
 
         return builder.toString();
-    }
-
-    /**
-     * The estimated size of this operation.
-     *
-     * @return the length of the internal payload.
-     */
-    @Value.Derived
-    public long estimatedSizeInBytes() {
-        return payload().length();
-    }
-
-    /**
-     * The number of actions in this operation.
-     *
-     * @return the size of the internal action list.
-     */
-    @Value.Derived
-    public long numberOfActions() {
-        return actions().size();
     }
 
     /**
