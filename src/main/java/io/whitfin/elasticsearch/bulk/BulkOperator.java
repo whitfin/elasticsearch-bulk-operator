@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * The {@link BulkOperator} controls batch execution against Elasticsearch via
  * the Elasticsearch Bulk API. It contains control over concurrency, throttling
  * and lifecycle monitoring.
- * 
+ *
  * To create an operator, you must go via the {@link BulkOperator.Builder} in
  * order to get sane defaults and validation.
  *
@@ -124,12 +124,7 @@ public class BulkOperator implements Closeable {
 
             // schedule our flush to happen on the provided interval
             this.scheduledFuture = this.scheduler.scheduleWithFixedDelay(
-                    new Runnable() {
-                        @Override
-                        public void run() {
-                            flush();
-                        }
-                    },
+                    this::flush,
                     builder.interval,
                     builder.interval,
                     TimeUnit.MILLISECONDS
@@ -274,12 +269,7 @@ public class BulkOperator implements Closeable {
          */
         @Override
         public void onSuccess(final Response response) {
-            execAndRelease(new Runnable() {
-                @Override
-                public void run() {
-                    lifecycle.afterBulk(id, BulkOperator.this, operation, response);
-                }
-            });
+            execAndRelease(() -> lifecycle.afterBulk(id, BulkOperator.this, operation, response));
         }
 
         /**
@@ -290,12 +280,7 @@ public class BulkOperator implements Closeable {
          */
         @Override
         public void onFailure(final Exception exception) {
-            execAndRelease(new Runnable() {
-                @Override
-                public void run() {
-                    lifecycle.afterBulk(id, BulkOperator.this, operation, exception);
-                }
-            });
+            execAndRelease(() -> lifecycle.afterBulk(id, BulkOperator.this, operation, exception));
         }
 
         /**
