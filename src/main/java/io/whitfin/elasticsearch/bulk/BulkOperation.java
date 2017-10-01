@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.immutables.value.Value;
+import org.immutables.value.Value.Style.ImplementationVisibility;
 
 import java.util.List;
 
@@ -16,12 +17,12 @@ import java.util.List;
  * in time, via a single HTTP request.
  *
  * The only modifiable state of this class is the actions list, which can
- * be modified via the {@link ImmutableBulkAction.Builder}. All other
+ * be modified via the {@link BulkAction.Builder}. All other
  * values are derived at build time as they'll never change, and we can
  * assume that they'll always be used.
  */
-@Value.Immutable
-@Value.Style(depluralize = true)
+@Value.Immutable(copy = false)
+@Value.Style(depluralize = true, visibility = ImplementationVisibility.PACKAGE)
 @JsonSerialize(as = ImmutableBulkOperation.class)
 @JsonDeserialize(as = ImmutableBulkOperation.class)
 public abstract class BulkOperation {
@@ -112,14 +113,12 @@ public abstract class BulkOperation {
      *
      * @return a new {@link BulkAction.Builder} instance.
      */
-    @SuppressWarnings("WeakerAccess")
-    public static Builder builder() {
+    static Builder builder() {
         return new BulkOperation.Builder();
     }
 
     /**
      * Builder bindings to allow for creating operations with validation.
      */
-    @SuppressWarnings("WeakerAccess")
-    public static class Builder extends ImmutableBulkOperation.Builder { }
+    static class Builder extends ImmutableBulkOperation.Builder { }
 }

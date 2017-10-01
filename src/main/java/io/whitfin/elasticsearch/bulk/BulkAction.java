@@ -3,6 +3,7 @@ package io.whitfin.elasticsearch.bulk;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import org.immutables.value.Value;
+import org.immutables.value.Value.Style.ImplementationVisibility;
 
 import javax.annotation.Nullable;
 
@@ -20,8 +21,8 @@ import javax.annotation.Nullable;
  *
  * @see <a href="http://ow.ly/VQIo30fxqly">Elasticsearch Bulk API</a>
  */
-@Value.Immutable
-@Value.Style(depluralize = true)
+@Value.Immutable(copy = false)
+@Value.Style(visibility = ImplementationVisibility.PACKAGE)
 @JsonSerialize(as = ImmutableBulkAction.class)
 @JsonDeserialize(as = ImmutableBulkAction.class)
 public abstract class BulkAction {
@@ -110,7 +111,6 @@ public abstract class BulkAction {
      *
      * @return a new {@link Builder} instance.
      */
-    @SuppressWarnings("unused")
     public static Builder builder() {
         return new BulkAction.Builder();
     }
@@ -118,6 +118,5 @@ public abstract class BulkAction {
     /**
      * Builder bindings to allow for creating actions with validation.
      */
-    @SuppressWarnings("WeakerAccess")
-    public static class Builder extends ImmutableBulkAction.Builder { }
+    static class Builder extends ImmutableBulkAction.Builder { }
 }

@@ -9,6 +9,8 @@ import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
+import org.immutables.value.Value;
+import org.immutables.value.Value.Style.ImplementationVisibility;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -33,7 +35,10 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * @see <a href="http://ow.ly/VQIo30fxqly">Elasticsearch Bulk API</a>
  */
-public class BulkOperator implements Closeable {
+@SuppressWarnings("immutables")
+@Value.Immutable(copy = false)
+@Value.Style(visibility = ImplementationVisibility.PACKAGE)
+public abstract class BulkOperator implements Closeable {
 
     /**
      * Internal counter to use to generate execution identifiers.
@@ -51,36 +56,6 @@ public class BulkOperator implements Closeable {
     private static final Map<String, String> EMPTY_MAP = Collections.emptyMap();
 
     /**
-     * The lifecycle associated with this operator.
-     */
-    private final BulkLifecycle lifecycle;
-
-    /**
-     * Represents an upper bound on the actions to buffer.
-     */
-    private final Integer maxActions;
-
-    /**
-     * The client instance used to talk to Elasticsearch.
-     */
-    private final RestClient client;
-
-    /**
-     * Our scheduling service to allow flushing on interval.
-     */
-    private final ScheduledExecutorService scheduler;
-
-    /**
-     * Our future to store references to scheduled executions.
-     */
-    private final ScheduledFuture scheduledFuture;
-
-    /**
-     * Our concurrency controller to limit access.
-     */
-    private final Semaphore semaphore;
-
-    /**
      * Represents the current number of items to execute.
      */
     private volatile Integer current;
@@ -96,48 +71,132 @@ public class BulkOperator implements Closeable {
     private BulkOperation.Builder operation;
 
     /**
-     * Initializes an operator from a {@link Builder} instance
-     * to ensure that we have an expected state provided.
-     *
-     * @param builder the {@link Builder} to create from.
+     * Our scheduling service to allow flushing on interval.
      */
-    private BulkOperator(Builder builder) {
-        // copy all basic builder values
-        this.client = builder.client;
-        this.lifecycle = builder.lifecycle;
-        this.maxActions = builder.maxActions;
+    private ScheduledExecutorService scheduler;
 
-        // create our semaphore to control our concurrency
-        this.semaphore = new Semaphore(builder.concurrency);
+    /**
+     * Our future to store references to scheduled executions.
+     */
+    private ScheduledFuture scheduledFuture;
 
+    /**
+     * Our concurrency controller to limit access.
+     */
+    private Semaphore mutex;
+
+    /**
+     * The client instance for Elasticsearch communication.
+     *
+     * @return a configured {@link RestClient} instance.
+     */
+    public abstract RestClient client();
+
+    /**
+     * The concurrency level for this operator instance.
+     * <p>
+     * The concurrency can not be set below 1, the builder
+     * will enforce this lower bound.
+     *
+     * @return a number of concurrent flushes.
+     */
+    @Value.Default
+    public int concurrency() {
+        return 1;
+    }
+
+    /**
+     * The lifecycle hooks being fired by this operator.
+     * <p>
+     * Rather than making use of null values, a {@link NoopLifecycle}
+     * will be used to represent an unset lifecycle.
+     *
+     * @return a {@link BulkLifecycle} instance.
+     */
+    @Value.Default
+    public BulkLifecycle lifecycle() {
+        return new NoopLifecycle();
+    }
+
+    /**
+     * The interval on which this operator will flush.
+     * <p>
+     * Setting this to null will disable scheduling flushing.
+     *
+     * @return a flush interval in milliseconds.
+     */
+    @Nullable
+    public abstract Integer interval();
+
+    /**
+     * The maximum number of actions to buffer before flushing.
+     *
+     * @return an maximum number of actions to buffer.
+     */
+    @Nullable
+    public abstract Integer maxActions();
+
+    /**
+     * Validation hook to configure any requirements for properties
+     * set inside the builder.
+     *
+     * Currently this just ensures that concurrency must be at least
+     * 1, to avoid blocking behaviour.
+     *
+     * @return a validated {@link BulkOperator} instance.
+     */
+    @Value.Check
+    BulkOperator validate() {
+        if (concurrency() > 0) {
+            return this;
+        }
+        return new Builder().from(this).concurrency(1).build();
+    }
+
+    /**
+     * Initializes the operator to begin receiving actions.
+     * <p>
+     * This effectively acts as a constructor due to the use of the
+     * immutable library, allowing this operator to use certain
+     * mutable state to track operations throughout.
+     *
+     * @return the same {@link BulkOperator} for chaining.
+     */
+    synchronized BulkOperator init() {
         // set initial states
         this.current = 0;
         this.closed = false;
 
+        // create our semaphore to control our concurrency
+        this.mutex = new Semaphore(concurrency());
+
         // begin our bulk operation creation via builder
         this.operation = BulkOperation.builder();
 
-        // if we have an interval configured
-        if (builder.interval != null) {
-            // set up the new scheduled pool with a single threads
-            this.scheduler = Executors.newScheduledThreadPool(1);
-
-            // schedule our flush to happen on the provided interval
-            this.scheduledFuture = this.scheduler.scheduleWithFixedDelay(
-                new Runnable() {
-                    @Override
-                    public void run() {
-                        flush();
-                    }
-                },
-                builder.interval,
-                builder.interval,
-                TimeUnit.MILLISECONDS
-            );
-        } else {
-            this.scheduler = null;
-            this.scheduledFuture = null;
+        // done if there's no interval
+        Integer interval = interval();
+        if (interval == null) {
+            return this;
         }
+
+        // set up the new scheduled pool with a single threads
+        this.scheduler = Executors.newScheduledThreadPool(1);
+
+        // schedule our flush to happen on the provided interval
+        this.scheduledFuture = this.scheduler.scheduleWithFixedDelay(
+            new Runnable() {
+                @Override
+                public void run() {
+                    flush();
+                }
+            },
+            interval,
+            interval,
+            TimeUnit.MILLISECONDS
+        );
+
+        // chaining
+        return this;
     }
 
     /**
@@ -161,7 +220,8 @@ public class BulkOperator implements Closeable {
         this.operation.addAction(bulkActions);
 
         // check for action count overages
-        if (this.maxActions != null && this.current >= this.maxActions) {
+        Integer maxActions = maxActions();
+        if (maxActions != null && this.current >= maxActions) {
             flush();
         }
 
@@ -195,7 +255,7 @@ public class BulkOperator implements Closeable {
 
         try {
             // throttle concurrency
-            this.semaphore.acquire();
+            this.mutex.acquire();
         } catch(InterruptedException e) {
             Thread.currentThread().interrupt();
         }
@@ -208,8 +268,8 @@ public class BulkOperator implements Closeable {
         HttpEntity entity = new NStringEntity(bulkOperation.payload(), ContentType.APPLICATION_JSON);
 
         // notify before listener and begin async request
-        this.lifecycle.beforeBulk(bulkId, this, bulkOperation);
-        this.client.performRequestAsync("POST", "/_bulk", EMPTY_MAP, entity, responseListener, ND_JSON_HEADER);
+        this.lifecycle().beforeBulk(bulkId, this, bulkOperation);
+        this.client().performRequestAsync("POST", "/_bulk", EMPTY_MAP, entity, responseListener, ND_JSON_HEADER);
     }
 
     /**
@@ -229,7 +289,38 @@ public class BulkOperator implements Closeable {
         // handle scheduler shutdown
         if (this.scheduler != null) {
             this.scheduledFuture.cancel(true);
+            this.scheduledFuture = null;
             this.scheduler.shutdown();
+            this.scheduler = null;
+        }
+    }
+
+    /**
+     * Returns a builder in order to create an operator.
+     *
+     * @param client
+     *      the {@link RestClient} to use to talk to Elasticsearch.
+     * @return
+     *      a new {@link Builder} instance from the provided client.
+     */
+    public static Builder builder(@Nonnull RestClient client) {
+        return new Builder().client(client);
+    }
+
+    /**
+     * Builder bindings to allow for creating operators with initialization.
+     */
+    static class Builder extends ImmutableBulkOperator.Builder {
+
+        /**
+         * Builds an operator from the current state, making
+         * sure to initialize any mutable state after creation.
+         *
+         * @return a new {@link BulkOperator} instance.
+         */
+        @Override
+        public ImmutableBulkOperator build() {
+            return (ImmutableBulkOperator) super.build().init();
         }
     }
 
@@ -266,7 +357,7 @@ public class BulkOperator implements Closeable {
         /**
          * Handles request success by forwarding the response back through
          * to the lifecycle assigned to this class.
-         *
+         * <p>
          * It is important to note that this does not mean execution success,
          * but rather request success (as in HTTP).
          *
@@ -277,7 +368,7 @@ public class BulkOperator implements Closeable {
             execAndRelease(new Runnable() {
                 @Override
                 public void run() {
-                    lifecycle.afterBulk(id, BulkOperator.this, operation, response);
+                    lifecycle().afterBulk(id, BulkOperator.this, operation, response);
                 }
             });
         }
@@ -293,7 +384,7 @@ public class BulkOperator implements Closeable {
             execAndRelease(new Runnable() {
                 @Override
                 public void run() {
-                    lifecycle.afterBulk(id, BulkOperator.this, operation, exception);
+                    lifecycle().afterBulk(id, BulkOperator.this, operation, exception);
                 }
             });
         }
@@ -308,133 +399,8 @@ public class BulkOperator implements Closeable {
             try {
                 block.run();
             } finally {
-                semaphore.release();
+                mutex.release();
             }
-        }
-    }
-
-    /**
-     * Returns a builder in order to create an operator.
-     *
-     * @param client
-     *      the {@link RestClient} to use to talk to Elasticsearch.
-     * @return
-     *      a new {@link Builder} instance from the provided client.
-     */
-    public static Builder builder(RestClient client) {
-        return new Builder(client);
-    }
-
-    /**
-     * Builder class for a {@link BulkOperator} to provide finer control over
-     * validation and mutability.
-     * <p>
-     * As a bulk operator is talking directly to a datasource, it makes sense
-     * to have to be explicit when changing state on the operator.
-     */
-    public static class Builder {
-
-        /**
-         * Concurrency level of any built operators. Defaults to 1.
-         */
-        private int concurrency = 1;
-
-        /**
-         * A potential lifecycle listener to be notified of executions.
-         */
-        private BulkLifecycle lifecycle = new NoopLifecycle();
-
-        /**
-         * A potential upper bound on actions to buffer. Defaults to unbounded.
-         */
-        private Integer maxActions;
-
-        /**
-         * A potential interval to flush all buffered actions. Defaults to never.
-         */
-        private Long interval;
-
-        /**
-         * A required client to use when talking to Elasticsearch.
-         */
-        private RestClient client;
-
-        /**
-         * Initializes a builder instance with an Elasticsearch client.
-         * <p>
-         * This client must not be null, as it's required for execution.
-         *
-         * @param client the {@link RestClient} to execute with.
-         */
-        Builder(@Nonnull RestClient client) {
-            this.client = Objects.requireNonNull(client);
-        }
-
-        /**
-         * Modifies the concurrency associated with this builder.
-         * <p>
-         * The concurrency can not be set below 1, the builder
-         * will enforce this lower bound.
-         *
-         * @param concurrency
-         *      the new concurrency value.
-         * @return
-         *      the {@link Builder} instance for chaining calls.
-         */
-        public Builder concurrency(int concurrency) {
-            this.concurrency = concurrency < 1 ? 1 : concurrency;
-            return this;
-        }
-
-        /**
-         * Modifies the interval associated with this builder.
-         *
-         * @param interval
-         *      the new scheduled interval.
-         * @return
-         *      the {@link Builder} instance for chaining calls.
-         */
-        public Builder interval(long interval) {
-            this.interval = interval;
-            return this;
-        }
-
-        /**
-         * Modifies the lifecycle associated with this builder.
-         * <p>
-         * If you wish to unset a previously set lifecycle, you should
-         * use {@link NoopLifecycle} rather than passing null.
-         *
-         * @param lifecycle
-         *      the new lifecycle instance.
-         * @return
-         *      the {@link Builder} instance for chaining calls.
-         */
-        public Builder lifecycle(@Nonnull BulkLifecycle lifecycle) {
-            this.lifecycle = Objects.requireNonNull(lifecycle);
-            return this;
-        }
-
-        /**
-         * Modifies the max number of actions associated with this builder.
-         *
-         * @param maxActions
-         *      the new maximum number of actions.
-         * @return
-         *      the {@link Builder} instance for chaining calls.
-         */
-        public Builder maxActions(@Nullable Integer maxActions) {
-            this.maxActions = maxActions;
-            return this;
-        }
-
-        /**
-         * Constructs a new {@link BulkOperator} from this builder.
-         *
-         * @return a new {@link BulkOperator} instance.
-         */
-        public BulkOperator build() {
-            return new BulkOperator(this);
         }
     }
 }
