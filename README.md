@@ -66,6 +66,14 @@ public class BulkExample {
 
 For any other functionality, please see the documentation or the code itself.
 
+### Flush Options
+
+There are several options which can be applied to an operator to control how flushing occurs;
+
+1. You can define `maxActions` on an operator to provide a limit on the buffer stored internally before flushing.
+2. You can define `interval` on an operator to provide a schedule (in millis) on which to flush.
+3. You can opt (default) to manually flush by calling `flush()` on an operator.
+4. You can do any of the above in any combination to work with multiple flush triggers.
 
 ### Lifecycles
 
