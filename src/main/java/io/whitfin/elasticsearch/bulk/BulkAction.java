@@ -112,11 +112,123 @@ public abstract class BulkAction {
      * @return a new {@link Builder} instance.
      */
     public static Builder builder() {
-        return new BulkAction.Builder();
+        return ImmutableBulkAction.builder();
     }
 
     /**
-     * Builder bindings to allow for creating actions with validation.
+     * Builder interface for all immutable implementations to mask the
+     * use of the generated sources to avoid confusion.
+     *
+     * These methods are the only ones exposed from the builder to the
+     * outside world (rather than just the package).
      */
-    static class Builder extends ImmutableBulkAction.Builder { }
+    public interface Builder {
+
+        /**
+         * Sets the operation being carried out in the action.
+         *
+         * @param operation
+         *      the name of the Elasticsearch operation.
+         * @return
+         *      the {@link Builder} instance for chaining calls.
+         */
+        Builder operation(String operation);
+
+        /**
+         * Sets the name of the targeted index, if any.
+         *
+         * @param index
+         *      the name of the targeted index.
+         * @return
+         *      the {@link Builder} instance for chaining calls.
+         */
+        Builder index(String index);
+
+        /**
+         * Sets the name of the targeted type, if any.
+         *
+         * @param type
+         *      the name of the targeted type.
+         * @return
+         *      the {@link Builder} instance for chaining calls.
+         */
+        Builder type(String type);
+
+        /**
+         * Sets the document identifier, if any.
+         *
+         * @param id
+         *      the document identifier to operate on.
+         * @return
+         *      the {@link Builder} instance for chaining calls.
+         */
+        Builder id(String id);
+
+        /**
+         * Sets the parent identifier, if any.
+         *
+         * @param parent
+         *      the parent document identifier.
+         * @return
+         *      the {@link Builder} instance for chaining calls.
+         */
+        Builder parent(String parent);
+
+        /**
+         * Sets the routing key of the action, if any.
+         *
+         * @param routing
+         *      the routing key to apply to the operation.
+         * @return
+         *      the {@link Builder} instance for chaining calls.
+         */
+        Builder routing(String routing);
+
+        /**
+         * Sets the source body of the action.
+         *
+         * @param source
+         *      the source of the request as a {@link String}.
+         * @return
+         *      the {@link Builder} instance for chaining calls.
+         */
+        Builder source(String source);
+
+        /**
+         * Sets the version of the target document, if any.
+         *
+         * @param version
+         *      an integer version identifier.
+         * @return
+         *      the {@link Builder} instance for chaining calls.
+         */
+        Builder version(Integer version);
+
+        /**
+         * Sets whether the action should trigger a refresh.
+         *
+         * @param refresh
+         *      a boolean representing a triggered refresh.
+         * @return
+         *      the {@link Builder} instance for chaining calls.
+         */
+        Builder refresh(Boolean refresh);
+
+        /**
+         * Sets whether the action should wait for active shards.
+         *
+         * @param waitForActiveShards
+         *      a boolean representing whether to wait or not.
+         * @return
+         *      the {@link Builder} instance for chaining calls.
+         */
+        Builder waitForActiveShards(Boolean waitForActiveShards);
+
+        /**
+         * Constructs a new {@link BulkAction} from this builder.
+         *
+         * @return a new {@link BulkAction} instance.
+         */
+        BulkAction build();
+    }
 }

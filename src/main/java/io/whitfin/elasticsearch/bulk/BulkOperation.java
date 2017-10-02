@@ -113,12 +113,65 @@ public abstract class BulkOperation {
      *
      * @return a new {@link BulkAction.Builder} instance.
      */
-    static Builder builder() {
-        return new BulkOperation.Builder();
+    public static Builder builder() {
+        return ImmutableBulkOperation.builder();
     }
 
     /**
-     * Builder bindings to allow for creating operations with validation.
+     * Builder interface for all immutable implementations to mask the
+     * use of the generated sources to avoid confusion.
+     *
+     * These methods are the only ones exposed from the builder to the
+     * outside world (rather than just the package).
      */
-    static class Builder extends ImmutableBulkOperation.Builder { }
+    @SuppressWarnings("UnusedReturnValue")
+    public interface Builder {
+
+        /**
+         * Sets the actions for this operation.
+         *
+         * @param actions
+         *      a number of {@link BulkAction} instances to set.
+         * @return
+         *      the {@link Builder} instance for chaining calls.
+         */
+        Builder actions(Iterable<? extends BulkAction> actions);
+
+        /**
+         * Adds a single {@link BulkAction} to the operation.
+         *
+         * @param action
+         *      a {@link BulkAction} instance to add to the operation.
+         * @return
+         *      the {@link Builder} instance for chaining calls.
+         */
+        Builder addAction(BulkAction action);
+
+        /**
+         * Adds a number of {@link BulkAction} instances to the operation.
+         *
+         * @param actions
+         *      a number of {@link BulkAction} instances to add.
+         * @return
+         *      the {@link Builder} instance for chaining calls.
+         */
+        Builder addAction(BulkAction... actions);
+
+        /**
+         * Adds a number of {@link BulkAction} instances to the operation.
+         *
+         * @param actions
+         *      a number of {@link BulkAction} instances to add.
+         * @return
+         *      the {@link Builder} instance for chaining calls.
+         */
+        Builder addAllActions(Iterable<? extends BulkAction> actions);
+
+        /**
+         * Constructs a new {@link BulkOperation} from this builder.
+         *
+         * @return a new {@link BulkOperation} instance.
+         */
+        BulkOperation build();
+    }
 }

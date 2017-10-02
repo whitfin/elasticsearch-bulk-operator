@@ -94,9 +94,6 @@ public abstract class BulkOperator implements Closeable {
 
     /**
      * The concurrency level for this operator instance.
-     * <p>
-     * The concurrency can not be set below 1, the builder
-     * will enforce this lower bound.
      *
      * @return a number of concurrent flushes.
      */
@@ -107,9 +104,6 @@ public abstract class BulkOperator implements Closeable {
 
     /**
      * The lifecycle hooks being fired by this operator.
-     * <p>
-     * Rather than making use of null values, a {@link NoopLifecycle}
-     * will be used to represent an unset lifecycle.
      *
      * @return a {@link BulkLifecycle} instance.
      */
@@ -120,8 +114,6 @@ public abstract class BulkOperator implements Closeable {
 
     /**
      * The interval on which this operator will flush.
-     * <p>
-     * Setting this to null will disable scheduling flushing.
      *
      * @return a flush interval in milliseconds.
      */
@@ -147,10 +139,17 @@ public abstract class BulkOperator implements Closeable {
      */
     @Value.Check
     BulkOperator validate() {
+        BulkOperator initializedOperator;
         if (concurrency() > 0) {
-            return this;
+            initializedOperator = this;
+        } else {
+            initializedOperator = ImmutableBulkOperator
+                    .builder()
+                        .from(this)
+                        .concurrency(1)
+                    .build();
         }
-        return new Builder().from(this).concurrency(1).build();
+        return initializedOperator.init();
     }
 
     /**
@@ -162,7 +161,7 @@ public abstract class BulkOperator implements Closeable {
      *
      * @return the same {@link BulkOperator} for chaining.
      */
-    synchronized BulkOperator init() {
+    private synchronized BulkOperator init() {
         // set initial states
         this.current = 0;
         this.closed = false;
@@ -250,7 +249,7 @@ public abstract class BulkOperator implements Closeable {
         synchronized (BulkOperator.this) {
             bulkOperation = this.operation.build();
             this.current = 0;
-            this.operation = BulkOperation.builder();
+            this.operation.actions(Collections.<BulkAction>emptyList());
         }
 
         try {
@@ -304,24 +303,79 @@ public abstract class BulkOperator implements Closeable {
      *      a new {@link Builder} instance from the provided client.
      */
     public static Builder builder(@Nonnull RestClient client) {
-        return new Builder().client(client);
+        return ImmutableBulkOperator.builder().client(client);
     }
 
     /**
-     * Builder bindings to allow for creating operators with initialization.
+     * Builder interface for all immutable implementations to mask the
+     * use of the generated sources to avoid confusion.
+     *
+     * These methods are the only ones exposed from the builder to the
+     * outside world (rather than just the package).
      */
-    static class Builder extends ImmutableBulkOperator.Builder {
+    public interface Builder {
 
         /**
-         * Builds an operator from the current state, making
-         * sure to initialize any mutable state after creation.
+         * Initializes a builder instance with an Elasticsearch client.
+         * <p>
+         * This client must not be null, as it's required for execution.
+         *
+         * @param client the {@link RestClient} to execute with.
+         */
+        Builder client(RestClient client);
+
+        /**
+         * Modifies the concurrency associated with this builder.
+         * <p>
+         * The concurrency can not be set below 1, the builder
+         * will enforce this lower bound.
+         *
+         * @param concurrency
+         *      the new concurrency value.
+         * @return
+         *      the {@link Builder} instance for chaining calls.
+         */
+        Builder concurrency(int concurrency);
+
+        /**
+         * Modifies the interval associated with this builder.
+         *
+         * @param interval
+         *      the new scheduled interval.
+         * @return
+         *      the {@link Builder} instance for chaining calls.
+         */
+        Builder interval(Integer interval);
+
+        /**
+         * Modifies the lifecycle associated with this builder.
+         * <p>
+         * If you wish to unset a previously set lifecycle, you should
+         * use {@link NoopLifecycle} rather than passing null.
+         *
+         * @param lifecycle
+         *      the new lifecycle instance.
+         * @return
+         *      the {@link Builder} instance for chaining calls.
+         */
+        Builder lifecycle(BulkLifecycle lifecycle);
+
+        /**
+         * Modifies the max number of actions associated with this builder.
+         *
+         * @param maxActions
+         *      the new maximum number of actions.
+         * @return
+         *      the {@link Builder} instance for chaining calls.
+         */
+        Builder maxActions(Integer maxActions);
+
+        /**
+         * Constructs a new {@link BulkOperator} from this builder.
          *
          * @return a new {@link BulkOperator} instance.
          */
-        @Override
-        public ImmutableBulkOperator build() {
-            return (ImmutableBulkOperator) super.build().init();
-        }
+        BulkOperator build();
     }
 
     /**
