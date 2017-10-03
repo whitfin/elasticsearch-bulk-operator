@@ -320,7 +320,10 @@ public abstract class BulkOperator implements Closeable {
          * <p>
          * This client must not be null, as it's required for execution.
          *
-         * @param client the {@link RestClient} to execute with.
+         * @param client
+         *      the {@link RestClient} to execute with.
+         * @return
+         *      the {@link Builder} instance for chaining calls.
          */
         Builder client(RestClient client);
 
