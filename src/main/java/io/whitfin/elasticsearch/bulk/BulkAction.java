@@ -91,6 +91,14 @@ public abstract class BulkAction {
     public abstract Integer version();
 
     /**
+     * The document version type associated with this action.
+     *
+     * @return a String version type
+     */
+    @Nullable
+    public abstract String versionType();
+
+    /**
      * Whether this action should cause a refresh or not.
      *
      * @return true if a refresh should be triggered.
@@ -203,6 +211,16 @@ public abstract class BulkAction {
          *      the {@link Builder} instance for chaining calls.
          */
         Builder version(Integer version);
+
+        /**
+         * Sets the version type of the target document, if any.
+         *
+         * @param versionType
+         *      a version type identifier.
+         * @return
+         *      the {@link Builder} instance for chaining calls.
+         */
+        Builder versionType(String versionType);
 
         /**
          * Sets whether the action should trigger a refresh.

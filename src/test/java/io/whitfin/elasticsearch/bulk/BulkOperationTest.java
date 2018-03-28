@@ -34,7 +34,7 @@ public class BulkOperationTest {
 
         String expectedPayload =
             "{\"index\":{\"_index\":\"test_index\",\"_type\":\"test_type\",\"_id\":\"test_id\",\"_parent\":\"test_parent\","
-            + "\"_routing\":\"test_routing\",\"_version\":1,\"refresh\":true,\"wait_for_active_shards\":true}}\n"
+            + "\"routing\":\"test_routing\",\"version\":1,\"refresh\":true,\"wait_for_active_shards\":true}}\n"
             + "{\"test_key\":\"test_value\"}\n";
 
         Assert.assertEquals(operation.payload(), expectedPayload);

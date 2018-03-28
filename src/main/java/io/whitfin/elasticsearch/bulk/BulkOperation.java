@@ -83,16 +83,20 @@ public abstract class BulkOperation {
                 operationBuilder.put("_parent", action.parent());
             }
 
+            if (action.refresh() != null) {
+                operationBuilder.put("refresh", action.refresh());
+            }
+
             if (action.routing() != null) {
-                operationBuilder.put("_routing", action.routing());
+                operationBuilder.put("routing", action.routing());
             }
 
             if (action.version() != null) {
-                operationBuilder.put("_version", action.version());
+                operationBuilder.put("version", action.version());
             }
 
-            if (action.refresh() != null) {
-                operationBuilder.put("refresh", action.refresh());
+            if (action.versionType() != null) {
+                operationBuilder.put("version_type", action.versionType());
             }
 
             if (action.waitForActiveShards() != null) {

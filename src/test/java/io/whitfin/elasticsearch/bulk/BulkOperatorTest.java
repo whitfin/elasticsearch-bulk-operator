@@ -118,7 +118,7 @@ public class BulkOperatorTest {
      * finished executing inside this class.
      */
     @AfterClass
-    public void cleanup() throws Exception {
+    public void cleanup() {
         for (BulkOperator operator : this.operators) {
             operator.close();
         }
@@ -177,7 +177,7 @@ public class BulkOperatorTest {
      * @return
      *      a String index name.
      */
-    private String generateTempIndex() throws Exception {
+    private String generateTempIndex() {
         String index = generateRandomHexToken(6);
         this.indices.add(index);
         return index;
@@ -191,7 +191,7 @@ public class BulkOperatorTest {
      * @return
      *      a new operator instance
      */
-    private BulkOperator generateTempOperator(UnaryOperator<BulkOperator.Builder> unaryOperator) throws Exception {
+    private BulkOperator generateTempOperator(UnaryOperator<BulkOperator.Builder> unaryOperator) {
         BulkOperator operator = unaryOperator.apply(BulkOperator.builder(this.restClient)).build();
         this.operators.add(operator);
         return operator;
