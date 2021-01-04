@@ -1,5 +1,7 @@
 # Elasticsearch Bulk Operator (REST) [![Build Status](https://travis-ci.org/whitfin/elasticsearch-bulk-operator.svg?branch=master)](https://travis-ci.org/whitfin/elasticsearch-bulk-operator) [![Maven Central](https://img.shields.io/maven-central/v/io.whitfin/elasticsearch-bulk-operator.svg)]() [![Documentation](https://img.shields.io/badge/docs-latest-blue.svg)](https://javadoc.io/doc/io.whitfin/elasticsearch-bulk-operator)
 
+**Update 2021**: As of the most recent Elasticsearch versions, there is once again an [official implementation](https://www.elastic.co/guide/en/elasticsearch/client/java-rest/7.10/java-rest-high-document-bulk.html) of `BulkProcessor` shipped in the latest releases. I'd encourage users to update and migrate over.
+
 This repo contains an implementation of something similar to the `BulkProcessor` included in Elasticsearch 2.x. The intent
 is to make it easier to carry out bulk actions against Elasticsearch using just the REST client which doesn't yet include
 an easy way to carry out `_bulk` requests.
