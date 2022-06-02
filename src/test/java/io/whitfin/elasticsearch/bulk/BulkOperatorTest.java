@@ -1,12 +1,18 @@
 package io.whitfin.elasticsearch.bulk;
 
+import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import co.elastic.clients.elasticsearch.core.CountResponse;
+import co.elastic.clients.elasticsearch.core.DeleteRequest;
+import co.elastic.clients.elasticsearch.core.bulk.BulkOperation;
+import co.elastic.clients.elasticsearch.core.bulk.IndexOperation;
+import co.elastic.clients.json.jackson.JacksonJsonpMapper;
+import co.elastic.clients.transport.ElasticsearchTransport;
+import co.elastic.clients.transport.rest_client.RestClientTransport;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import io.whitfin.elasticsearch.bulk.lifecycle.RequeueLifecycle;
 import org.apache.http.HttpHost;
 import org.awaitility.Awaitility;
-import org.awaitility.Duration;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -14,15 +20,21 @@ import org.testng.annotations.Test;
 
 import java.math.BigInteger;
 import java.security.SecureRandom;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.Callable;
+import java.util.function.UnaryOperator;
 
-import static org.awaitility.Duration.FIVE_SECONDS;
-import static org.awaitility.Duration.TEN_SECONDS;
+import static org.awaitility.Durations.FIVE_SECONDS;
+import static org.awaitility.Durations.TEN_SECONDS;
 
 public class BulkOperatorTest {
+
+    /**
+     * The internal client for Elasticsearch communication.
+     */
+    private ElasticsearchClient elasticsearch;
 
     /**
      * List of operators to clean up after completion.
@@ -35,39 +47,29 @@ public class BulkOperatorTest {
     private List<String> indices;
 
     /**
-     * Internal mapper for all JSON conversion.
-     */
-    private ObjectMapper mapper;
-
-    /**
-     * The internal client for Elasticsearch communication.
-     */
-    private RestClient restClient;
-
-    /**
      * Creates all needed state for the internal test cases.
      */
     @BeforeClass
     public void setupClient() {
-        this.mapper = new ObjectMapper();
         this.indices = new ArrayList<>();
         this.operators = new ArrayList<>();
-        this.restClient = RestClient.builder(new HttpHost("localhost", 9200)).build();
+
+        RestClient restClient = RestClient.builder(new HttpHost("localhost", 9200)).build();
+        ElasticsearchTransport transport = new RestClientTransport(restClient, new JacksonJsonpMapper());
+
+        this.elasticsearch = new ElasticsearchClient(transport);
     }
 
     /**
      * Tests writing documents on an interval.
      */
     @Test
-    public void testIndexNamesingABunchOfDocumentsOnInterval() throws Exception {
+    public void testIndexNamesingABunchOfDocumentsOnInterval() {
         // generate temporary resources for current test structures
         String testIndexNamesNames = generateTempIndex();
-        BulkOperator operator = generateTempOperator(new UnaryOperator<BulkOperator.Builder>() {
-            @Override
-            public BulkOperator.Builder apply(BulkOperator.Builder builder) {
-                return builder.concurrency(1).interval(3_000).lifecycle(new RequeueLifecycle());
-            }
-        });
+        BulkOperator operator = generateTempOperator(builder ->
+            builder.concurrency(1).interval(3_000).lifecycle(new RequeueLifecycle())
+        );
 
         // write documents and then validate existence
         writeDocumentsIntoElasticsearch(operator, testIndexNamesNames, 5_000);
@@ -78,15 +80,12 @@ public class BulkOperatorTest {
      * Tests writing documents on a limit.
      */
     @Test
-    public void testIndexNamesingABunchOfDocumentsOnLimit() throws Exception {
+    public void testIndexNamesingABunchOfDocumentsOnLimit() {
         // generate temporary resources for current test structures
         String testIndexNames = generateTempIndex();
-        BulkOperator operator = generateTempOperator(new UnaryOperator<BulkOperator.Builder>() {
-            @Override
-            public BulkOperator.Builder apply(BulkOperator.Builder builder) {
-                return builder.concurrency(1).lifecycle(new RequeueLifecycle()).maxActions(1_000);
-            }
-        });
+        BulkOperator operator = generateTempOperator(builder ->
+            builder.concurrency(1).lifecycle(new RequeueLifecycle()).maxActions(1_000)
+        );
 
         // write documents and then validate existence
         writeDocumentsIntoElasticsearch(operator, testIndexNames, 1_000);
@@ -97,15 +96,12 @@ public class BulkOperatorTest {
      * Tests writing documents on a manual flush.
      */
     @Test
-    public void testIndexNamesingABunchOfDocumentsOnFlush() throws Exception {
+    public void testIndexNamesingABunchOfDocumentsOnFlush()  {
         // generate temporary resources for current test structures
         String testIndexNames = generateTempIndex();
-        BulkOperator operator = generateTempOperator(new UnaryOperator<BulkOperator.Builder>() {
-            @Override
-            public BulkOperator.Builder apply(BulkOperator.Builder builder) {
-                return builder.concurrency(1).lifecycle(new RequeueLifecycle());
-            }
-        });
+        BulkOperator operator = generateTempOperator(builder ->
+            builder.concurrency(1).lifecycle(new RequeueLifecycle())
+        );
 
         // write documents and then validate existence
         writeDocumentsIntoElasticsearch(operator, testIndexNames, 500);
@@ -134,7 +130,7 @@ public class BulkOperatorTest {
         }
 
         try {
-            this.restClient.performRequest("DELETE", "/" + sb.toString());
+            this.elasticsearch.delete(new DeleteRequest.Builder().index(sb.toString()).build());
         } catch(Exception e) {
             // never mind
         }
@@ -149,8 +145,8 @@ public class BulkOperatorTest {
      *
      * @return a String JSON payload.
      */
-    private String generateRandomDocument() {
-        return "{\"value\":\"" + generateRandomHexToken(8) + "\"}";
+    private JsonNode generateRandomDocument() {
+        return JsonNodeFactory.instance.objectNode().put("value", generateRandomHexToken(8));
     }
 
     /**
@@ -192,7 +188,7 @@ public class BulkOperatorTest {
      *      a new operator instance
      */
     private BulkOperator generateTempOperator(UnaryOperator<BulkOperator.Builder> unaryOperator) {
-        BulkOperator operator = unaryOperator.apply(BulkOperator.builder(this.restClient)).build();
+        BulkOperator operator = unaryOperator.apply(BulkOperator.builder(this.elasticsearch)).build();
         this.operators.add(operator);
         return operator;
     }
@@ -209,28 +205,19 @@ public class BulkOperatorTest {
      *      the maximum time to wait before failing.
      */
     private void validateDocumentsExist(Duration duration, final String index, final long count) {
-        Awaitility.await().atMost(duration).until(new Callable<Boolean>() {
-            @Override
-            public Boolean call() throws Exception {
-                // response container
-                Response response;
+        Awaitility.await().atMost(duration).until(() -> {
+            // response container
+            CountResponse response;
 
-                try {
-                    // try execute the request, fail on any errors in the query
-                    response = restClient.performRequest("GET", "/" + index + "/_count");
-                } catch(Exception e) {
-                    return false;
-                }
-
-                // if the request failed for some reason, return false
-                if (response.getStatusLine().getStatusCode() != 200) {
-                    return false;
-                }
-
-                // validate the body has a count matching the expected, or false
-                JsonNode body = mapper.readTree(response.getEntity().getContent());
-                return body.path("count").asLong(-1) == count;
+            try {
+                // try execute the request, fail on any errors in the query
+                response = this.elasticsearch.count(builder -> builder.index(index));
+            } catch(Exception e) {
+                return false;
             }
+
+            // validate the body has a count
+            return response.count() == count;
         });
     }
 
@@ -247,36 +234,13 @@ public class BulkOperatorTest {
      */
     private void writeDocumentsIntoElasticsearch(BulkOperator operator, String index, long count) {
         for (int i = 0; i < count; i++) {
-            BulkAction action = BulkAction
-                    .builder()
-                        .operation("index")
-                        .index(index)
-                        .type("test")
-                        .source(generateRandomDocument())
-                    .build();
-
+            BulkOperation action = BulkOperation.of(builder ->
+                builder.index(new IndexOperation.Builder<>()
+                    .index(index)
+                    .document(generateRandomDocument())
+                .build())
+            );
             operator.add(action);
         }
-    }
-
-    /**
-     * Represents an operation on a single operand that produces a result of the
-     * same type as its operand.
-     *
-     * This is lifted from JDK8 to provide shim support for JDK7.
-     *
-     * @param <T> the type of the operand and result of the operator
-     */
-    private interface UnaryOperator<T> {
-
-        /**
-         * Applies this function to the given argument.
-         *
-         * @param t
-         *      the function argument.
-         * @return
-         *      the function result.
-         */
-        T apply(T t);
     }
 }

@@ -1,29 +1,26 @@
 package io.whitfin.elasticsearch.bulk;
 
+import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import co.elastic.clients.elasticsearch._types.Refresh;
+import co.elastic.clients.elasticsearch.core.BulkRequest;
+import co.elastic.clients.elasticsearch.core.bulk.BulkOperation;
 import io.whitfin.elasticsearch.bulk.lifecycle.NoopLifecycle;
-import org.apache.http.Header;
-import org.apache.http.HttpEntity;
-import org.apache.http.entity.ContentType;
-import org.apache.http.message.BasicHeader;
-import org.apache.http.nio.entity.NStringEntity;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
 import org.immutables.value.Value;
-import org.immutables.value.Value.Style.ImplementationVisibility;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Closeable;
-import java.util.Collections;
-import java.util.Map;
-import java.util.Objects;
+import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+
+import static org.immutables.value.Value.Style.ImplementationVisibility.PACKAGE;
 
 /**
  * The {@link BulkOperator} controls batch execution against Elasticsearch via
@@ -37,23 +34,13 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 @SuppressWarnings("immutables")
 @Value.Immutable(copy = false)
-@Value.Style(visibility = ImplementationVisibility.PACKAGE)
+@Value.Style(depluralize = true, jdkOnly = true, visibility = PACKAGE)
 public abstract class BulkOperator implements Closeable {
 
     /**
      * Internal counter to use to generate execution identifiers.
      */
     private static final AtomicLong IDENTIFIERS = new AtomicLong();
-
-    /**
-     * Static header to use on all bulk requests, per the Elasticsearch API.
-     */
-    private static final Header ND_JSON_HEADER = new BasicHeader("content-type", "application/x-ndjson");
-
-    /**
-     * Static empty map to send as query parameters alongside requests.
-     */
-    private static final Map<String, String> EMPTY_MAP = Collections.emptyMap();
 
     /**
      * Represents the current number of items to execute.
@@ -68,7 +55,7 @@ public abstract class BulkOperator implements Closeable {
     /**
      * An operation builder to buffer actions into.
      */
-    private BulkOperation.Builder operation;
+    private BulkRequest.Builder request;
 
     /**
      * Our scheduling service to allow flushing on interval.
@@ -78,7 +65,7 @@ public abstract class BulkOperator implements Closeable {
     /**
      * Our future to store references to scheduled executions.
      */
-    private ScheduledFuture scheduledFuture;
+    private ScheduledFuture<?> scheduledFuture;
 
     /**
      * Our concurrency controller to limit access.
@@ -88,9 +75,9 @@ public abstract class BulkOperator implements Closeable {
     /**
      * The client instance for Elasticsearch communication.
      *
-     * @return a configured {@link RestClient} instance.
+     * @return a configured {@link ElasticsearchClient} instance.
      */
-    public abstract RestClient client();
+    public abstract ElasticsearchClient client();
 
     /**
      * The concurrency level for this operator instance.
@@ -144,10 +131,10 @@ public abstract class BulkOperator implements Closeable {
             initializedOperator = this;
         } else {
             initializedOperator = ImmutableBulkOperator
-                    .builder()
-                        .from(this)
-                        .concurrency(1)
-                    .build();
+                .builder()
+                    .from(this)
+                    .concurrency(1)
+                .build();
         }
         return initializedOperator.init();
     }
@@ -170,7 +157,7 @@ public abstract class BulkOperator implements Closeable {
         this.mutex = new Semaphore(concurrency());
 
         // begin our bulk operation creation via builder
-        this.operation = BulkOperation.builder();
+        this.request = new BulkRequest.Builder();
 
         // done if there's no interval
         Integer interval = interval();
@@ -183,12 +170,7 @@ public abstract class BulkOperator implements Closeable {
 
         // schedule our flush to happen on the provided interval
         this.scheduledFuture = this.scheduler.scheduleWithFixedDelay(
-            new Runnable() {
-                @Override
-                public void run() {
-                    flush();
-                }
-            },
+            this::flush,
             interval,
             interval,
             TimeUnit.MILLISECONDS
@@ -199,16 +181,28 @@ public abstract class BulkOperator implements Closeable {
     }
 
     /**
-     * Adds new {@link BulkAction} instances to the internal
+     * Adds new {@link BulkOperation} instances to the internal
      * bulk operation builder.
      *
      * @param bulkActions
-     *      the {@link BulkAction} instances to add.
+     *      the {@link BulkOperation} instances to add.
      * @return
      *      the {@link BulkOperator} instance for chaining.
      */
-    @SuppressWarnings("UnusedReturnValue")
-    public synchronized BulkOperator add(BulkAction... bulkActions) {
+    public synchronized BulkOperator add(BulkOperation... bulkActions) {
+        return this.add(Arrays.asList(bulkActions));
+    }
+
+    /**
+     * Adds new {@link BulkOperation} instances to the internal
+     * bulk operation builder.
+     *
+     * @param bulkActions
+     *      the {@link BulkOperation} instances to add.
+     * @return
+     *      the {@link BulkOperator} instance for chaining.
+     */
+    public synchronized BulkOperator add(List<BulkOperation> bulkActions) {
         // short-circuit if closed
         if (this.closed) {
             throw new IllegalStateException("BulkOperator already closed");
@@ -216,7 +210,7 @@ public abstract class BulkOperator implements Closeable {
 
         // add the action
         this.current++;
-        this.operation.addAction(bulkActions);
+        this.request.operations(bulkActions);
 
         // check for action count overages
         Integer maxActions = maxActions();
@@ -245,11 +239,11 @@ public abstract class BulkOperator implements Closeable {
         }
 
         // synchronize with the add method
-        BulkOperation bulkOperation;
+        BulkRequest bulkRequest;
         synchronized (BulkOperator.this) {
-            bulkOperation = this.operation.build();
+            bulkRequest = this.request.refresh(Refresh.True).build();
             this.current = 0;
-            this.operation.actions(Collections.<BulkAction>emptyList());
+            this.request = new BulkRequest.Builder();
         }
 
         try {
@@ -262,13 +256,19 @@ public abstract class BulkOperator implements Closeable {
         // create a new identifier for this execution
         long bulkId = IDENTIFIERS.incrementAndGet();
 
-        // create request listeners and convert the payload to a HttpEntity as JSON
-        ResponseListener responseListener = new BulkResponseListener(bulkId, bulkOperation);
-        HttpEntity entity = new NStringEntity(bulkOperation.payload(), ContentType.APPLICATION_JSON);
-
         // notify before listener and begin async request
-        this.lifecycle().beforeBulk(bulkId, this, bulkOperation);
-        this.client().performRequestAsync("POST", "/_bulk", EMPTY_MAP, entity, responseListener, ND_JSON_HEADER);
+        this.lifecycle().beforeBulk(bulkId, this, bulkRequest);
+
+        try {
+            // handle execution and handling of a successful bulk request
+            this.lifecycle().afterBulk(bulkId, this, bulkRequest, this.client().bulk(bulkRequest));
+        } catch (Exception e) {
+            // handle exceptions thrown during a bulk request
+            this.lifecycle().afterBulk(bulkId, this, bulkRequest, e);
+        } finally {
+            // release our lock
+            this.mutex.release();
+        }
     }
 
     /**
@@ -298,11 +298,11 @@ public abstract class BulkOperator implements Closeable {
      * Returns a builder in order to create an operator.
      *
      * @param client
-     *      the {@link RestClient} to use to talk to Elasticsearch.
+     *      the {@link ElasticsearchClient} to use to talk to Elasticsearch.
      * @return
      *      a new {@link Builder} instance from the provided client.
      */
-    public static Builder builder(@Nonnull RestClient client) {
+    public static Builder builder(@Nonnull ElasticsearchClient client) {
         return ImmutableBulkOperator.builder().client(client);
     }
 
@@ -321,11 +321,11 @@ public abstract class BulkOperator implements Closeable {
          * This client must not be null, as it's required for execution.
          *
          * @param client
-         *      the {@link RestClient} to execute with.
+         *      the {@link ElasticsearchClient} to execute with.
          * @return
          *      the {@link Builder} instance for chaining calls.
          */
-        Builder client(RestClient client);
+        Builder client(ElasticsearchClient client);
 
         /**
          * Modifies the concurrency associated with this builder.
@@ -379,85 +379,5 @@ public abstract class BulkOperator implements Closeable {
          * @return a new {@link BulkOperator} instance.
          */
         BulkOperator build();
-    }
-
-    /**
-     * Listening class to handle responses coming back from Elasticsearch by
-     * forwarding them back through to the contained lifecycle.
-     * <p>
-     * This is just a container class which avoids having to bloat the definition
-     * of the {@link #flush()} methods with this class implementation.
-     */
-    private class BulkResponseListener implements ResponseListener {
-
-        /**
-         * The internal execution identifier.
-         */
-        private final long id;
-
-        /**
-         * The internal operation.
-         */
-        private final BulkOperation operation;
-
-        /**
-         * Initializes this listener with an identifier and operation.
-         *
-         * @param id the execution identifier.
-         * @param operation the {@link BulkOperation} being executed.
-         */
-        private BulkResponseListener(long id, @Nonnull BulkOperation operation) {
-            this.id = id;
-            this.operation = Objects.requireNonNull(operation);
-        }
-
-        /**
-         * Handles request success by forwarding the response back through
-         * to the lifecycle assigned to this class.
-         * <p>
-         * It is important to note that this does not mean execution success,
-         * but rather request success (as in HTTP).
-         *
-         * @param response the {@link Response} from Elasticsearch.
-         */
-        @Override
-        public void onSuccess(final Response response) {
-            execAndRelease(new Runnable() {
-                @Override
-                public void run() {
-                    lifecycle().afterBulk(id, BulkOperator.this, operation, response);
-                }
-            });
-        }
-
-        /**
-         * Handles request failure by forwarding the exception back through
-         * to the lifecycle assigned to this class.
-         *
-         * @param exception the {@link Exception} thrown in execution.
-         */
-        @Override
-        public void onFailure(final Exception exception) {
-            execAndRelease(new Runnable() {
-                @Override
-                public void run() {
-                    lifecycle().afterBulk(id, BulkOperator.this, operation, exception);
-                }
-            });
-        }
-
-        /**
-         * Small handler to ensure that we correctly release the held
-         * semaphore.
-         *
-         * @param block the block to execute.
-         */
-        private void execAndRelease(Runnable block) {
-            try {
-                block.run();
-            } finally {
-                mutex.release();
-            }
-        }
     }
 }

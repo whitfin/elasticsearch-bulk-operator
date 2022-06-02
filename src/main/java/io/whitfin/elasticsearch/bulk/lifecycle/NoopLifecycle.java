@@ -1,9 +1,9 @@
 package io.whitfin.elasticsearch.bulk.lifecycle;
 
+import co.elastic.clients.elasticsearch.core.BulkRequest;
+import co.elastic.clients.elasticsearch.core.BulkResponse;
 import io.whitfin.elasticsearch.bulk.BulkLifecycle;
-import io.whitfin.elasticsearch.bulk.BulkOperation;
 import io.whitfin.elasticsearch.bulk.BulkOperator;
-import org.elasticsearch.client.Response;
 
 /**
  * A no-op lifecycle to act as a null lifecycle.
@@ -17,7 +17,7 @@ public class NoopLifecycle implements BulkLifecycle {
      * {@inheritDoc}
      */
     @Override
-    public void beforeBulk(long executionId, BulkOperator operator, BulkOperation bulkOperation) {
+    public void beforeBulk(long executionId, BulkOperator operator, BulkRequest request) {
         // executed before the bulk request is sent
     }
 
@@ -25,7 +25,7 @@ public class NoopLifecycle implements BulkLifecycle {
      * {@inheritDoc}
      */
     @Override
-    public void afterBulk(long executionId, BulkOperator operator, BulkOperation bulkOperation, Response response) {
+    public void afterBulk(long executionId, BulkOperator operator, BulkRequest request, BulkResponse response) {
         // executed after a successful bulk request
     }
 
@@ -33,7 +33,7 @@ public class NoopLifecycle implements BulkLifecycle {
      * {@inheritDoc}
      */
     @Override
-    public void afterBulk(long executionId, BulkOperator operator, BulkOperation bulkOperation, Throwable failure) {
+    public void afterBulk(long executionId, BulkOperator operator, BulkRequest request, Throwable failure) {
         // executed after a failed bulk request
     }
 }

@@ -1,5 +1,7 @@
 package io.whitfin.elasticsearch.bulk;
 
+import co.elastic.clients.elasticsearch.core.BulkRequest;
+import co.elastic.clients.elasticsearch.core.BulkResponse;
 import org.elasticsearch.client.Response;
 
 /**
@@ -20,10 +22,10 @@ public interface BulkLifecycle {
      *      the bulk execution identifier.
      * @param operator
      *      the {@link BulkOperator} carrying out the request.
-     * @param bulkOperation
-     *      the {@link BulkOperation} being executed.
+     * @param request
+     *      the {@link BulkRequest} being executed.
      */
-    void beforeBulk(long executionId, BulkOperator operator, BulkOperation bulkOperation);
+    void beforeBulk(long executionId, BulkOperator operator, BulkRequest request);
 
     /**
      * Executes after a bulk execution.
@@ -35,12 +37,12 @@ public interface BulkLifecycle {
      *      the bulk execution identifier.
      * @param operator
      *      the {@link BulkOperator} carrying out the request.
-     * @param bulkOperation
-     *      the {@link BulkOperation} being executed.
+     * @param request
+     *      the {@link BulkRequest} being executed.
      * @param response
      *      the response returned by the execution.
      */
-    void afterBulk(long executionId, BulkOperator operator, BulkOperation bulkOperation, Response response);
+    void afterBulk(long executionId, BulkOperator operator, BulkRequest request, BulkResponse response);
 
     /**
      * Executes after a failed bulk execution.
@@ -49,10 +51,10 @@ public interface BulkLifecycle {
      *      the bulk execution identifier.
      * @param operator
      *      the {@link BulkOperator} carrying out the request.
-     * @param bulkOperation
-     *      the {@link BulkOperation} being executed.
+     * @param request
+     *      the {@link BulkRequest} being executed.
      * @param failure
      *      the {@link Throwable} caught during execution.
      */
-    void afterBulk(long executionId, BulkOperator operator, BulkOperation bulkOperation, Throwable failure);
+    void afterBulk(long executionId, BulkOperator operator, BulkRequest request, Throwable failure);
 }
