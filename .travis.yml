@@ -1,8 +1,0 @@
-language: java
-jdk:
-  - oraclejdk9
-  - oraclejdk8
-script:
-  - mvn clean install
-services:
-  - elasticsearch
