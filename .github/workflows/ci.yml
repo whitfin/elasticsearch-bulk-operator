@@ -14,14 +14,7 @@ jobs:
       matrix:
         java:
           - 17
-          - 16
-          - 15
-          - 14
-          - 13
-          - 12
           - 11
-          - 10
-          - 9
           - 8
     steps:
       - uses: actions/checkout@v3
