@@ -2,4 +2,8 @@
     <Match>
         <Class name="~.*\.Immutable.*"/>
     </Match>
+    <Match>=
+        <Class name="io.whitfin.elasticsearch.bulk.BulkOperator"/>
+        <Bug pattern="DLS_DEAD_LOCAL_STORE"/>
+    </Match>
 </FindBugsFilter>
